@@ -41,12 +41,26 @@ pub fn print_log_contents(path: Arc<PathBuf>, search_words: Vec<String>, usernam
                 let contains_killed = line.contains("killed");
                 let contains_username = usernames.iter().any(|username| line.contains(username));
                 if contains_killed && contains_username {
-                    if let Some((before, after)) = line.split_once("killed") {
+                    if let Some((before_killed, after_killed)) = line.split_once("killed") {
+                        for username in &usernames {
+                            if let Some((before_username, after_username)) = before_killed.split_once(username) {
+                                print_fancy(&[
+                                    (before_username, CYAN, vec![]),
+                                    (username, VIOLET, vec![BOLD]),
+                                    (after_username, CYAN, vec![]),
+                                    ("killed", RED, vec![BOLD, UNDERLINED, ITALIC]),
+                                    (after_killed, CYAN, vec![]),
+                                ], NewLine);
+                                break;
+                            }
+                        }
+                        /*
                         print_fancy(&[
-                            (before, CYAN, vec![]),
-                            ("killled", RED, vec![BOLD, UNDERLINED, ITALIC]),
-                            (after, CYAN, vec![]),
+                            (before_killed, CYAN, vec![]),
+                            ("killed", RED, vec![BOLD, UNDERLINED, ITALIC]),
+                            (after_killed, CYAN, vec![]),
                         ], NewLine);
+                        */
                     }
                 } else {
                     for word in &search_words {
@@ -54,7 +68,7 @@ pub fn print_log_contents(path: Arc<PathBuf>, search_words: Vec<String>, usernam
                             if let Some((before, after)) = line.split_once(word) {
                                 print_fancy(&[
                                     (before, CYAN, vec![]),
-                                    (word, GREEN, vec![BOLD, UNDERLINED, ITALIC]),
+                                    (word, VIOLET, vec![BOLD, UNDERLINED, ITALIC]),
                                     (after, CYAN, vec![]),
                                 ], NewLine);
                             }
