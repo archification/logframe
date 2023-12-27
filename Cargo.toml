@@ -11,3 +11,9 @@ lazy_static = "1.4.0"
 serde = { version ="1.0.179", features = ["derive"] }
 toml = "0.7.6"
 solarized = { git = "https://github.com/archification/solarized.git", branch = "main" }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
