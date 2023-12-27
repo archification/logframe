@@ -1,5 +1,5 @@
 [package]
-name = "warframe"
+name = "logframe"
 version = "0.1.0"
 edition = "2021"
 
