@@ -11,12 +11,36 @@ use solarized::{
     VIOLET, BLUE, CYAN, GREEN, YELLOW, ORANGE, RED, MAGENTA,
     BOLD, UNDERLINED, ITALIC
 };
+use warframe::worldstate::prelude::*;
+use tokio;
 
 #[derive(Deserialize)]
 pub struct Config {
     pub log_file_path: PathBuf,
     pub search_words: Vec<String>,
     pub usernames: Vec<String>,
+    pub enable_daynight: bool,
+}
+
+pub async fn daynight() -> Result<(), ApiError> {
+    let client = Client::new();
+    match client.fetch::<Cetus>().await {
+        Ok(cetus) => {
+            print_fancy(&[
+                ("currently: ", CYAN, vec![]),
+                (&format!("{}", cetus.state), VIOLET, vec![]),
+                (" on ", CYAN, vec![]),
+                ("cetus", GREEN, vec![]),
+                (".\n", CYAN, vec![]),
+                ("It will be ", CYAN, vec![]),
+                (&format!("{}", cetus.state.opposite()), VIOLET, vec![]),
+                (" in ", CYAN, vec![]),
+                (&format!("{}\n", cetus.eta()), VIOLET, vec![]),
+            ], NewLine);
+            Ok(())
+        }
+        Err(why) => Err(why)
+    }
 }
 
 pub fn read_config() -> Result<Config, Box<dyn std::error::Error>> {
@@ -30,7 +54,7 @@ pub fn read_config() -> Result<Config, Box<dyn std::error::Error>> {
     Ok(config)
 }
 
-pub fn print_log_contents(path: Arc<PathBuf>, search_words: Vec<String>, usernames: Vec<String>) {
+pub fn print_log_contents(path: Arc<PathBuf>, search_words: Vec<String>, usernames: Vec<String>, enable_daynight: bool) {
     let mut reader = BufReader::new(File::open(&*path).unwrap());
     let last_pos = 0;
     loop {
@@ -84,6 +108,12 @@ pub fn print_log_contents(path: Arc<PathBuf>, search_words: Vec<String>, usernam
                     }
                 }
             }
+        }
+        if enable_daynight {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                daynight().await
+            }).unwrap();
         }
         let _last_pos = file.metadata().map(|m| m.len() as u64).unwrap_or(last_pos);
         thread::sleep(Duration::from_secs(1));

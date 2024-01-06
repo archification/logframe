@@ -1,3 +1,4 @@
 log_file_path = "/home/jaster/.local/share/Steam/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log"
-search_words = ["killed", "Registered"]
+search_words = ["killed", "Chat"]
 usernames = ["archification"]
+enable_daynight = false
