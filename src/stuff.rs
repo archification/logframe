@@ -1,46 +1,23 @@
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, SeekFrom, Seek};
-use std::thread;
-use std::time::Duration;
 use std::sync::Arc;
 use std::path::PathBuf;
-use toml;
 use serde::Deserialize;
+use tokio::time::{sleep, Duration};
 use solarized::{
     print_colored, print_fancy, PrintMode::NewLine,
     VIOLET, BLUE, CYAN, GREEN, YELLOW, ORANGE, RED, MAGENTA,
     BOLD, UNDERLINED, ITALIC
 };
-use warframe::worldstate::prelude::*;
-use tokio;
+use crate::worldstate::worldstate;
+
 
 #[derive(Deserialize)]
 pub struct Config {
     pub log_file_path: PathBuf,
     pub search_words: Vec<String>,
     pub usernames: Vec<String>,
-    pub enable_daynight: bool,
-}
-
-pub async fn daynight() -> Result<(), ApiError> {
-    let client = Client::new();
-    match client.fetch::<Cetus>().await {
-        Ok(cetus) => {
-            print_fancy(&[
-                ("currently: ", CYAN, vec![]),
-                (&format!("{}", cetus.state), VIOLET, vec![]),
-                (" on ", CYAN, vec![]),
-                ("cetus", GREEN, vec![]),
-                (".\n", CYAN, vec![]),
-                ("It will be ", CYAN, vec![]),
-                (&format!("{}", cetus.state.opposite()), VIOLET, vec![]),
-                (" in ", CYAN, vec![]),
-                (&format!("{}\n", cetus.eta()), VIOLET, vec![]),
-            ], NewLine);
-            Ok(())
-        }
-        Err(why) => Err(why)
-    }
+    pub enable_worldstate: bool,
 }
 
 pub fn read_config() -> Result<Config, Box<dyn std::error::Error>> {
@@ -49,73 +26,70 @@ pub fn read_config() -> Result<Config, Box<dyn std::error::Error>> {
     print_colored(
         &["f", "i", "l", "e ", "r", "e", "a", "d", ": Config OK"],
         &[VIOLET, BLUE, CYAN, GREEN, YELLOW, ORANGE, RED, MAGENTA],
-        NewLine
-    );
+        NewLine);
     Ok(config)
 }
 
-pub fn print_log_contents(path: Arc<PathBuf>, search_words: Vec<String>, usernames: Vec<String>, enable_daynight: bool) {
-    let mut reader = BufReader::new(File::open(&*path).unwrap());
-    let last_pos = 0;
+pub async fn print_log_contents(path: Arc<PathBuf>, search_words: Vec<String>, usernames: Vec<String>, enable_worldstate: bool) {
+    let mut file = match File::open(&*path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Error opening log file: {}", &e);
+            return;
+        }
+    };
+    let mut last_pos = file.seek(SeekFrom::End(0)).unwrap_or(0);
     loop {
-        let mut file = File::open(&*path).unwrap();
+        if file.metadata().map(|m| m.len()).unwrap_or(last_pos) < last_pos {
+            last_pos = 0;
+        }
         file.seek(SeekFrom::Start(last_pos)).unwrap();
-        for line in (&mut reader).lines() {
-            if let Ok(line) = line {
-                let contains_killed = line.contains("killed");
-                let contains_username = usernames.iter().any(|username| line.contains(username));
-                if contains_killed && contains_username {
-                    if let Some((before_killed, after_killed)) = line.split_once("killed") {
-                        for username in &usernames {
-                            if before_killed.contains(username) {
-                                let busersplit = before_killed.split_once(username);
-                                if let Some((before_username, after_username)) = busersplit {
-                                    print_fancy(&[
-                                        (before_username, CYAN, vec![]),
-                                        (username, VIOLET, vec![BOLD]),
-                                        (after_username, CYAN, vec![]),
-                                        ("killed", RED, vec![BOLD, UNDERLINED, ITALIC]),
-                                        (after_killed, CYAN, vec![]),
-                                    ], NewLine);
-                                    break;
-                                }
-                            } else if after_killed.contains(username) {
-                                let ausersplit = after_killed.split_once(username);
-                                if let Some((before_username, after_username)) = ausersplit {
-                                    print_fancy(&[
-                                        (before_killed, CYAN, vec![]),
-                                        ("killed", RED, vec![]),
-                                        (before_username, CYAN, vec![]),
-                                        (username, VIOLET, vec![BOLD]),
-                                        (after_username, CYAN, vec![]),
-                                    ], NewLine);
-                                    break;
-                                }
+        let reader = BufReader::new(&mut file);
+        for line in reader.lines().map_while(Result::ok) {
+            let contains_killed = line.contains("killed");
+            let contains_username = usernames.iter().any(|username| line.contains(username));
+            if contains_killed && contains_username {
+                if let Some((before_killed, after_killed)) = line.split_once("killed") {
+                    for username in &usernames {
+                        if before_killed.contains(username) {
+                            if let Some((before_username, after_username)) = before_killed.split_once(username) {
+                                print_fancy(&[
+                                    (before_username, CYAN, vec![]),
+                                    (username, VIOLET, vec![BOLD]),
+                                    (after_username, CYAN, vec![]),
+                                    ("killed", RED, vec![BOLD, UNDERLINED, ITALIC]),
+                                    (after_killed, CYAN, vec![]),
+                                ], NewLine);
+                                break;
                             }
+                        } else if after_killed.contains(username) && let Some((before_username, after_username)) = after_killed.split_once(username) {
+                            print_fancy(&[
+                                (before_killed, CYAN, vec![]),
+                                ("killed", RED, vec![]),
+                                (before_username, CYAN, vec![]),
+                                (username, VIOLET, vec![BOLD]),
+                                (after_username, CYAN, vec![]),
+                            ], NewLine);
+                            break;
                         }
                     }
-                } else {
-                    for word in &search_words {
-                        if !contains_killed {
-                            if let Some((before, after)) = line.split_once(word) {
-                                print_fancy(&[
-                                    (before, CYAN, vec![]),
-                                    (word, GREEN, vec![BOLD, UNDERLINED, ITALIC]),
-                                    (after, CYAN, vec![]),
-                                ], NewLine);
-                            }
-                        }
+                }
+            } else {
+                for word in &search_words {
+                    if !contains_killed && let Some((before, after)) = line.split_once(word) {
+                        print_fancy(&[
+                            (before, CYAN, vec![]),
+                            (word, GREEN, vec![BOLD, UNDERLINED, ITALIC]),
+                            (after, CYAN, vec![]),
+                        ], NewLine);
                     }
                 }
             }
         }
-        if enable_daynight {
-            let runtime = tokio::runtime::Runtime::new().unwrap();
-            runtime.block_on(async {
-                daynight().await
-            }).unwrap();
+        last_pos = file.stream_position().unwrap();
+        if enable_worldstate && let Err(e) = worldstate().await {
+            eprintln!("Error fetching worldstate: {}", e);
         }
-        let _last_pos = file.metadata().map(|m| m.len() as u64).unwrap_or(last_pos);
-        thread::sleep(Duration::from_secs(1));
+        sleep(Duration::from_secs(1)).await;
     }
 }

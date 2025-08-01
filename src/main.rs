@@ -1,16 +1,17 @@
-mod common;
+mod worldstate;
 mod stuff;
 
 use std::env;
 use solarized::{
+    clear,
     print_colored, print_fancy, PrintMode::NewLine,
     VIOLET, BLUE, CYAN, GREEN, YELLOW, ORANGE, RED, MAGENTA, GREY
 };
 use stuff::{read_config, print_log_contents};
 use std::sync::Arc;
-use common::clear;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     clear();
     let args: Vec<String> = env::args().collect();
     if args.len() >= 2 {
@@ -36,8 +37,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let search_words = config.search_words.clone();
         let usernames = config.usernames.clone();
         let path = Arc::new(config.log_file_path);
-        let enable_daynight = config.enable_daynight.clone();
-        print_log_contents(path, search_words, usernames, enable_daynight);
+        let enable_worldstate = config.enable_worldstate;
+        print_log_contents(path, search_words, usernames, enable_worldstate).await;
     }
     Ok(())
 }

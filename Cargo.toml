@@ -1,18 +1,20 @@
 [package]
 name = "logframe"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-crossterm = "0.26.1"
-lazy_static = "1.4.0"
-serde = { version ="1.0.179", features = ["derive"] }
-toml = "0.7.6"
+crossterm = "0.29.0"
+lazy_static = "1.5.0"
+reqwest = { version = "0.12.22", features = ["json"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.142"
 solarized = { git = "https://github.com/archification/solarized.git", branch = "main" }
-warframe = "1.0.4"
-tokio = { version = "1.35.1", features = ["full"] }
+tokio = { version = "1.46.1", features = ["full"] }
+toml = "0.9.2"
+warframe = "7.0.1"
 
 [profile.release]
 strip = true
